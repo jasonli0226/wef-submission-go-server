@@ -2,7 +2,7 @@ package main
 
 import (
 	"archive/zip"
-	"fmt"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -10,58 +10,73 @@ import (
 	"path/filepath"
 )
 
+type Response struct {
+	Message string `json:"message"`
+}
+
 func main() {
-	http.HandleFunc("/upload", handleUpload)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	router := http.NewServeMux()
+
+	router.HandleFunc("/upload", handleUpload)
+
+	routerWithMiddleware := loggingMiddleware(router)
+	log.Println("Server started on port 8080")
+	http.ListenAndServe(":8080", routerWithMiddleware)
 }
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		sendJSONResponse(w, http.StatusMethodNotAllowed, Response{Message: "Method not allowed"})
+		return
+	}
+
 	// Parse the multipart form data
 	err := r.ParseMultipartForm(10 << 20) // 10MB
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendJSONResponse(w, http.StatusBadRequest, Response{Message: err.Error()})
 		return
 	}
 
 	// Get the file from the request
 	file, handler, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "Error retrieving file from form data", http.StatusBadRequest)
+		sendJSONResponse(w, http.StatusBadRequest, Response{Message: "Error retrieving file from form data"})
 		return
 	}
 	defer file.Close()
 
 	// Create a temporary directory to extract the zip file
-	tempDir := "./temp"
+	tempDir := "./uploads"
 	err = os.MkdirAll(tempDir, os.ModePerm)
 	if err != nil {
-		http.Error(w, "Error creating temporary directory", http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, Response{Message: "Error creating temporary directory"})
 		return
 	}
-	defer os.RemoveAll(tempDir)
 
 	// Save the uploaded zip file to the temporary directory
 	filePath := filepath.Join(tempDir, handler.Filename)
+	defer os.Remove(filePath)
+
 	outFile, err := os.Create(filePath)
 	if err != nil {
-		http.Error(w, "Error saving uploaded file", http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, Response{Message: "Error saving uploaded file"})
 		return
 	}
 	defer outFile.Close()
 	_, err = io.Copy(outFile, file)
 	if err != nil {
-		http.Error(w, "Error saving uploaded file", http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, Response{Message: "Error saving uploaded file"})
 		return
 	}
 
 	// Unzip the file
 	err = unzip(filePath, tempDir)
 	if err != nil {
-		http.Error(w, "Error unzipping file", http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, Response{Message: "Error unzipping file"})
 		return
 	}
 
-	fmt.Fprintf(w, "File uploaded and unzipped successfully")
+	sendJSONResponse(w, http.StatusCreated, Response{Message: "File uploaded and unzipped successfully"})
 }
 
 func unzip(src, dest string) error {
@@ -97,4 +112,25 @@ func unzip(src, dest string) error {
 	}
 
 	return nil
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Log the request details
+		log.Printf("Request: %s %s", r.Method, r.URL.Path)
+
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
+func sendJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
