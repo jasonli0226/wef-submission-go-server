@@ -14,13 +14,8 @@ type Response struct {
 }
 
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		sendJSONResponse(w, http.StatusMethodNotAllowed, Response{Message: "Method not allowed"})
-		return
-	}
-
 	// Parse the multipart form data
-	err := r.ParseMultipartForm(10 << 20) // 10MB
+	err := r.ParseMultipartForm(25 << 20) // 25 MB
 	if err != nil {
 		sendJSONResponse(w, http.StatusBadRequest, Response{Message: err.Error()})
 		return

@@ -4,16 +4,17 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/jasonli0226/wef-submission-go-server/api/handlers"
 	"github.com/jasonli0226/wef-submission-go-server/api/middleware"
 )
 
 func main() {
-	router := http.NewServeMux()
+	router := mux.NewRouter()
 
-	router.HandleFunc("/upload", handlers.HandleUpload)
+	router.HandleFunc("/upload", handlers.HandleUpload).Methods("POST")
 
-	routerWithMiddleware := middleware.LoggingMiddleware(router)
+	routerWithMiddleware := middleware.CorsMiddleware(middleware.LoggingMiddleware(router))
 	log.Println("Server started on port 8080")
 	http.ListenAndServe(":8080", routerWithMiddleware)
 }
