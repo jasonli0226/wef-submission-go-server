@@ -8,10 +8,6 @@ import (
 	"github.com/jasonli0226/wef-submission-go-server/api/middleware"
 )
 
-type Response struct {
-	Message string `json:"message"`
-}
-
 func main() {
 	router := http.NewServeMux()
 
