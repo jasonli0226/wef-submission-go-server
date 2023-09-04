@@ -62,6 +62,10 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	RespJSON(w, http.StatusCreated, Response{Message: "File uploaded and unzipped successfully"})
 }
 
+func GetAllUploadLinks(w http.ResponseWriter, r *http.Request) {
+	RespJSON(w, http.StatusOK, Response{Message: "Dummy message"})
+}
+
 func unzip(src, dest string) error {
 	r, err := zip.OpenReader(src)
 	if err != nil {

@@ -12,7 +12,8 @@ import (
 func main() {
 	router := mux.NewRouter()
 
-	router.HandleFunc("/upload", handlers.HandleUpload).Methods("POST")
+	router.HandleFunc("/api/projects", handlers.HandleUpload).Methods("POST")
+	router.HandleFunc("/api/links", handlers.GetAllUploadLinks).Methods("GET")
 
 	routerWithMiddleware := middleware.CorsMiddleware(middleware.LoggingMiddleware(router))
 	log.Println("Server started on port 8080")
