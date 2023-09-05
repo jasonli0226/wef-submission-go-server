@@ -2,15 +2,26 @@ package handlers
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 type Response struct {
 	Message string `json:"message"`
 }
+
+type Project struct {
+	Name      string `json:"name"`
+	Link      string `json:"link"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+var projectDirectory string = "uploads"
 
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	// Parse the multipart form data
@@ -21,7 +32,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the file from the request
-	file, handler, err := r.FormFile("file")
+	file, handler, err := r.FormFile("project")
 	if err != nil {
 		RespJSON(w, http.StatusBadRequest, Response{Message: "Error retrieving file from form data"})
 		return
@@ -29,15 +40,14 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Create a temporary directory to extract the zip file
-	tempDir := "./uploads"
-	err = os.MkdirAll(tempDir, os.ModePerm)
+	err = os.MkdirAll(projectDirectory, os.ModePerm)
 	if err != nil {
 		RespJSON(w, http.StatusInternalServerError, Response{Message: "Error creating temporary directory"})
 		return
 	}
 
 	// Save the uploaded zip file to the temporary directory
-	filePath := filepath.Join(tempDir, handler.Filename)
+	filePath := filepath.Join(projectDirectory, handler.Filename)
 	defer os.Remove(filePath)
 
 	outFile, err := os.Create(filePath)
@@ -53,7 +63,7 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unzip the file
-	err = unzip(filePath, tempDir)
+	err = unzip(filePath, projectDirectory)
 	if err != nil {
 		RespJSON(w, http.StatusInternalServerError, Response{Message: "Error unzipping file"})
 		return
@@ -63,7 +73,44 @@ func HandleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAllUploadLinks(w http.ResponseWriter, r *http.Request) {
-	RespJSON(w, http.StatusOK, Response{Message: "Dummy message"})
+	dir, err := os.Open(projectDirectory)
+	if err != nil {
+		RespJSON(w, http.StatusBadRequest, Response{Message: "Error reading projects"})
+		return
+	}
+	defer dir.Close()
+
+	// Read the directory entries
+	entries, err := dir.ReadDir(0)
+	if err != nil {
+		RespJSON(w, http.StatusBadRequest, Response{Message: "Error reading projects"})
+		return
+	}
+
+	// Print the filenames
+	var projects []Project
+	var prefix = "WEF_Proj_"
+	for _, entry := range entries {
+		if !entry.Type().IsDir() || !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		schema := "http"
+		if r.TLS != nil {
+			schema = "https"
+		}
+
+		info, _ := entry.Info()
+		filename := strings.Split(entry.Name(), prefix)[1]
+		name := strings.Join(strings.Split(filename, "_"), " ")
+		project := Project{
+			Name:      name,
+			Link:      fmt.Sprintf("%s://%s/%s", schema, r.Host, entry.Name()),
+			UpdatedAt: info.ModTime().Format(time.RFC3339),
+		}
+		projects = append(projects, project)
+	}
+
+	RespJSON(w, http.StatusOK, projects)
 }
 
 func unzip(src, dest string) error {
