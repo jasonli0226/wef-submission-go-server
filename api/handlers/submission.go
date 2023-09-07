@@ -25,7 +25,7 @@ var projectDirectory string = "uploads"
 
 func HandleUpload(w http.ResponseWriter, r *http.Request) {
 	// Parse the multipart form data
-	err := r.ParseMultipartForm(25 << 20) // 25 MB
+	err := r.ParseMultipartForm(30 << 20) // 30 MB
 	if err != nil {
 		RespJSON(w, http.StatusBadRequest, Response{Message: err.Error()})
 		return

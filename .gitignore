@@ -22,3 +22,6 @@ go.work
 
 tests/
 uploads/
+
+.DS_Store
+backups/
